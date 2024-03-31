@@ -1,4 +1,3 @@
-<<<<<<< Updated upstream
 { pkgs, ... }:
 
 {
@@ -9,15 +8,3 @@
       pystring
   ];
 }
-=======
-{ config, pkgs, ... }:
-
-{
-  home.packages = with pkgs; [
-      # Python setup
-      python3Full
-      imath
-      pystring
-  ];
-}
->>>>>>> Stashed changes

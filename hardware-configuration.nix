@@ -1,0 +1,1 @@
+/Volume/@Repo/nixos/system/hardware-configuration.nix
