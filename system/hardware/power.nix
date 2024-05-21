@@ -13,6 +13,7 @@
   #    turbo = "never";
   #  };
   #};
+  services.power-profiles-daemon.enable = false; # conflicts with tlp
   services.tlp = {
     enable = true;
     settings = {

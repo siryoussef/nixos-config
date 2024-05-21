@@ -35,7 +35,7 @@
     # Core
     zsh
     alacritty
-    librewolf
+    floorp
     brave
     qutebrowser
     dmenu
@@ -63,6 +63,7 @@
     bottles
     # The following requires 64-bit FL Studio (FL64) to be installed to a bottle
     # With a bottle name of "FL Studio"
+    /*
     (pkgs.writeShellScriptBin "flstudio" ''
        #!/bin/sh
        if [ -z "$1" ]
@@ -84,7 +85,7 @@
       type = "Application";
       mimeTypes = ["application/octet-stream"];
     })
-
+  */
     # Media
     gimp
     pinta
@@ -95,6 +96,7 @@
     mpv
     yt-dlp
     blender
+    /*
     cura
     curaengine_stable
     (stdenv.mkDerivation {
@@ -119,6 +121,7 @@
         curaengine_stable
       ];
     })
+    */
     obs-studio
     ffmpeg
     (pkgs.writeScriptBin "kdenlive-accel" ''
@@ -142,8 +145,9 @@
 
   services.syncthing.enable = true;
 
-  xdg.enable = true;
-  xdg.userDirs = {
+xdg = {
+  enable = true;
+  userDirs = {
     enable = true;
     createDirectories = true;
     music = "${config.home.homeDirectory}/Media/Music";
@@ -163,11 +167,9 @@
       XDG_BOOK_DIR = "${config.home.homeDirectory}/Media/Books";
     };
   };
-  xdg.mime.enable = true;
-  xdg.mimeApps.enable = true;
-  xdg.mimeApps.associations.added = {
-    "application/octet-stream" = "flstudio.desktop;";
-  };
+   mime.enable = true;
+          mimeApps = { enable = true; /* associations.added = { "application/octet-stream" = "flstudio.desktop;";};*/ };
+          };
 
   home.sessionVariables = {
     EDITOR = userSettings.editor;

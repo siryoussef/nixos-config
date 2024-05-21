@@ -1,0 +1,1 @@
+./profiles/work/configuration.nix

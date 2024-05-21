@@ -1,33 +1,25 @@
 # Edit this configuration file to define what should be installed on
 # your system.  Help is available in the configuration.nix(5) man page
 # and in the NixOS manual (accessible by running ‘nixos-help’).
+# sudo nixos-rebuild boot --flake /etc/nixos#Snowyfrank
+{ config, pkgs, lib, systemSettings, userSettings,  ... }:
 
-{ config, pkgs, lib, systemSettings, userSettings, ... }:
 {
   imports =
-    [ #../../configuration.nix
-      ../../system/hardware-configuration.nix
-      ../../system/hardware/systemd.nix # systemd config
-      ../../system/hardware/kernel.nix # Kernel config
-      ../../system/hardware/power.nix # Power management
-      ../../system/hardware/time.nix # Network time sync
-      ../../system/hardware/opengl.nix
-      ../../system/hardware/printing.nix
-      ../../system/hardware/bluetooth.nix
-      (./. + "../../../system/wm"+("/"+userSettings.wm)+".nix") # My window manager
-      #../../system/app/flatpak.nix
-      ../../system/app/virtualization.nix
-      ( import ../../system/app/docker.nix {storageDriver = "btrfs"; inherit userSettings lib;} )
-      ../../system/security/doas.nix
-      ../../system/security/gpg.nix
-      ../../system/security/blocklist.nix
-      ../../system/security/firewall.nix
-      ../../system/security/firejail.nix
-      ../../system/security/openvpn.nix
-      ../../system/security/automount.nix
-      ../../system/style/stylix.nix
+    [
+      # Include the results of the hardware scan.
+      ./user/shell/sh.nix
+      ./user/shell/cli-collection.nix
+      #./sqldb.nix
+      #<home-manager/nixos>
+      #<nixpkgs/lib>
+      #<nixpkgs> {};
+      #<nixpkgs/nixos/modules/virtualisation/qemu-vm.nix>
     ];
-
+  #import <nixpkgs> {};
+# Edit this configuration file to define what should be installed on
+# your system.  Help is available in the configuration.nix(5) man page
+# and in the NixOS manual (accessible by running ‘nixos-help’).
 
   boot = {
   # Kernel modules
@@ -39,13 +31,13 @@
   # Bootloader
   loader = {
   # Use systemd-boot if uefi, default to grub otherwise
-  systemd-boot.enable = /*if (systemSettings.bootMode == "uefi") then true else*/ false;
+  systemd-boot.enable = if (systemSettings.bootMode == "uefi") then true else false;
   efi.canTouchEfiVariables = if (systemSettings.bootMode == "uefi") then true else false;
    # Bootloader.
   generationsDir.copyKernels = true;
   timeout = 3;
 
-  grub = {enable = /*if (systemSettings.bootMode == "uefi") then false else*/ true;
+  grub = {enable = if (systemSettings.bootMode == "uefi") then false else true;
           device = systemSettings.grubDevice; # does nothing if running uefi rather than bios
           efiSupport = true;
           efiInstallAsRemovable = false;
@@ -54,9 +46,6 @@
           default = 0;
  #        timeoutStyle = "menu";
           useOSProber = true;
-        devices = [
-  "/dev/disk/by-label/BEFI"
-];
           };
   };
 };
@@ -116,12 +105,9 @@ users = {
     betterbird-unwrapped
     #vscodium-fhs
     github-desktop
-    obsidian
-    logseq
     ];
     uid = 1000;
   };
-  extraGroups.vboxusers.members = [ "user-with-access-to-virtualbox" ];
 };
 
   # I use zsh btw
@@ -137,6 +123,7 @@ users = {
 environment = {
   shells = with pkgs; [ fish zsh bash ];
   sessionVariables.NIXPKGS_ALLOW_UNFREE = "1";
+  plasma6.excludePackages = [ pkgs.kdePackages.elisa ];
   # List packages installed in system profile.
   systemPackages = with pkgs; [
     vim
@@ -190,6 +177,17 @@ environment = {
     #chromium
     protonvpn-gui
     pitch-black
+    plasma-hud
+    libsForQt5.sddm-kcm
+    libsForQt5.kcmutils
+    libsForQt5.flatpak-kcm
+    libsForQt5.kate
+    libsForQt5.plasma-browser-integration
+    libsForQt5.plasma-disks
+    libsForQt5.filelight
+    libsForQt5.kdenlive
+    libsForQt5.neochat
+    libsForQt5.appstream-qt
     vlc
     smplayer
     obs-studio
@@ -204,10 +202,6 @@ environment = {
     win-spice
     virt-manager-qt
     virter
-    rclone
-    rclone-browser
-    syncthing
-    syncthing-tray
     wsysmon
     tldr
     kcalc
@@ -222,9 +216,9 @@ environment = {
    # grafana
     wget
     #gcc
-    
+
    python311Packages.jupyterlab
-   
+
     refind
     efibootmgr
     efitools
@@ -250,6 +244,7 @@ environment = {
    # xen
    # grub2_xen
   ]; };
+
 
 
 
@@ -312,7 +307,7 @@ i18n.extraLocaleSettings = {
 
 services = {
 # Set the keyboard layout.
-
+  xserver.xkb.layout = "us";
   emacs = { enable = true; install = true; startWithGraphical = true; defaultEditor = true; };
   upower.enable = true;
   acpid.enable = true;
@@ -344,7 +339,7 @@ services = {
   numpy
   pandas
 ]); };
-  jupyter = { enable = true; user = "youssef"; group = "jupyter"; password = "'sha1:1b961dc713fb:88483270a63e57d18d43cf337e629539de1436ba'"; };
+  jupyter = { enable = true; user = "youssef"; jupyter.group = "jupyter"; password = "'sha1:1b961dc713fb:88483270a63e57d18d43cf337e629539de1436ba'"; };
 
   /*
   jupyter.kernels = {
@@ -384,19 +379,49 @@ services = {
   #logind.hibernateKey = "hibernate";
   lvm = { enable = true; boot.thin.enable = true; dmeventd.enable = true; };
 
+  console.useXkbConfig = true;
+
   # Enable the X11 windowing system.
   xserver = {
   enable = true;
-  xkb.layout = "us";
+
   displayManager = {
+    # Enable automatic login for the user.
+    autoLogin = { enable = true; user = "youssef"; };
   # Enable the GNOME Desktop Environment.
     gdm = { enable = false; wayland = true; autoSuspend = true; };
+
+  # Enable KDE
+
+  #autoLogin.enable = true;
+
+    sddm = {
+      enable = true;
+      enableHidpi = true;
+      autoLogin.relogin = true;
+      wayland.enable = true ;
+      settings = { Autologin = {
+                   Session = "plasmawayland";
+                   User = "youssef";
+  }; };
+      settings.Wayland.SessionDir = "${pkgs.plasma5Packages.plasma-workspace}/share/wayland-sessions";
+      #autoLogin.minimumUid = 1000 ;
+      };
+
+  defaultSession = "plasmawayland";
+  job.execCmd = lib.mkForce "exec /run/current-system/sw/bin/sddm";
+
     };
   desktopManager = {
     gnome.enable = false;
+    plasma5 = {
+        enable = true;
+        phononBackend = "vlc";
+        runUsingSystemd = true;
+        useQtScaling = true;
+        };
   };
   };
-  displayManager.autoLogin = { enable = true; user = userSettings.username; };
   spice-vdagentd.enable = true ;
   pipewire = {
     enable = true;
@@ -404,7 +429,6 @@ services = {
     pulse.enable = true;
   };
 };
-console.useXkbConfig = true;
 programs.gnupg.agent.pinentryPackage = pkgs.pinentry-qt ;
 
 # Workaround for GNOME autologin: https://github.com/NixOS/nixpkgs/issues/103746#issuecomment-945091229
@@ -582,15 +606,7 @@ programs = {
   dconf.enable = true;
   fuse.userAllowOther = true;
   nano.syntaxHighlight = true;
-  bash = {
-    enableCompletion = true;
-    enableLsColors = true;
-    blesh.enable = true;
-    };
-  fish = {
-    enable = true;
-    useBabelfish = true;
-    };
+  bash = { enableCompletion = true; enableLsColors = true; };
   #wayfire.enable = true;
   atop = { enable = true; atopgpu.enable = false; };
   system-config-printer.enable = false;
@@ -604,6 +620,8 @@ programs = {
   darling = { enable = false; package = pkgs.darling;};
   chromium = {
     enable = true;
+    enablePlasmaBrowserIntegration = true;
+    plasmaBrowserIntegrationPackage = pkgs.plasma5Packages.plasma-browser-integration;
     homepageLocation = "https://duckduckgo.com";
     defaultSearchProviderEnabled = true;
   };
@@ -621,7 +639,7 @@ programs = {
   # browserpass = true; ##deprecated
     };
   };
-  kdeconnect = { enable = true; /* package = pkgs.plasma5Packages.kdeconnect-kde; */ };
+  kdeconnect = { enable = true; package = pkgs.plasma5Packages.kdeconnect-kde; };
   /*
   fish = { enable = true;
            vendor = { completions.enable = true;
@@ -639,7 +657,7 @@ programs = {
   qt.enable = true;
   gtk.iconCache.enable = true;
 
-  virtualisation = {
+  virtulisation = {
   waydroid.enable = true;
   lxd.enable = true;
   podman.enable = true;
@@ -662,8 +680,10 @@ programs = {
         enableHardening = true;
         };
   #VirtualBox guest
-  guest = { enable = false; seamless = true; draganddrop = true; clipboard = true ; };
+  guest = { enable = false; guest.x11 = true; };
   };
+  users.extraGroups.vboxusers.members = [ "user-with-access-to-virtualbox" ];
+
   kvmgt.enable = true;
 
   libvirtd = {
@@ -673,6 +693,8 @@ programs = {
     parallelShutdown = 3;
     onShutdown = "suspend";
     };
+
+  docker.enable = false;
   multipass.enable = false;
   appvm.enable = false;
   appvm.user = "youssef";
@@ -784,8 +806,9 @@ options = [ "rw,subvol=ArchRoot" ];
   # this value at the release version of the first install of this system.
   # Before changing this value read the documentation for this option
   # (e.g. man configuration.nix or on https://nixos.org/nixos/options.html).
-  system = {
-    stateVersion = config.system.nixos.release; # Did you read the comment?
-    copySystemConfiguration = false;
-    };
-}
+  system.stateVersion = config.system.nixos.release; # Did you read the comment?
+  system.copySystemConfiguration = true;
+
+  }
+
+
