@@ -1,40 +1,31 @@
 {
-  description = "Flake of Snowyfrank";
+  description = "Flake of LibrePhoenix";
 
-  outputs = inputs@{ self, nixpkgs, nixpkgs-stable, nixpkgs-r2211, nixpkgs-python, emacs-pin-nixpkgs, kdenlive-pin-nixpkgs,
-  fh,
-  fleek, blincus, disko, vscode, ytdlp-gui,
-  nix-gui, nixos-hardware, plasma-manager,
-                     home-manager, nix-doom-emacs, nix-straight, stylix, blocklist-hosts,
-                     hyprland-plugins, rust-overlay, org-nursery, org-yaap, org-side-tree,
-                     org-timeblock, phscroll,
-snowfall-lib, snowfall-dotbox, snowfall-flake, snowfall-thaw, ...}:
-
+  outputs = inputs@{ self, ... }:
     let
-
       # ---- SYSTEM SETTINGS ---- #
       systemSettings = {
         system = "x86_64-linux"; # system arch
-        hostname = "Snowyfrank"; # hostname
-        profile = "work"; # select a profile defined from my profiles directory
-        timezone = "Africa/Cairo"; # select timezone
+        hostname = "snowfire"; # hostname
+        profile = "personal"; # select a profile defined from my profiles directory
+        timezone = "America/Chicago"; # select timezone
         locale = "en_US.UTF-8"; # select locale
         bootMode = "uefi"; # uefi or bios
-        bootMountPath = "/boot/efi"; # mount path for efi boot partition; only used for uefi boot mode
+        bootMountPath = "/boot"; # mount path for efi boot partition; only used for uefi boot mode
         grubDevice = ""; # device identifier for grub; only used for legacy (bios) boot mode
       };
 
       # ----- USER SETTINGS ----- #
       userSettings = rec {
-        username = "youssef"; # username
-        name = "Youssef"; # name/identifier
-        email = "youssef@disroot.org"; # email (used for certain configurations)
+        username = "emmet"; # username
+        name = "Emmet"; # name/identifier
+        email = "emmet@librephoenix.com"; # email (used for certain configurations)
         dotfilesDir = "~/.dotfiles"; # absolute path of the local repo
         theme = "uwunicorn-yt"; # selcted theme from my themes directory (./themes/)
-        wm = "plasma"; # Selected window manager or desktop environment; must select one in both ./user/wm/ and ./system/wm/
+        wm = "hyprland"; # Selected window manager or desktop environment; must select one in both ./user/wm/ and ./system/wm/
         # window manager type (hyprland or x11) translator
-        wmType = if (wm == "hyprland") || (wm == "plasma") then "wayland" else "x11";
-        browser = "floorp"; # Default browser; must select one from ./user/app/browser/
+        wmType = if (wm == "hyprland") then "wayland" else "x11";
+        browser = "qutebrowser"; # Default browser; must select one from ./user/app/browser/
         defaultRoamDir = "Personal.p"; # Default org roam directory relative to ~/Org
         term = "alacritty"; # Default terminal command;
         font = "Intel One Mono"; # Selected font
@@ -57,50 +48,60 @@ snowfall-lib, snowfall-dotbox, snowfall-flake, snowfall-thaw, ...}:
 
       # create patched nixpkgs
       nixpkgs-patched =
-        (import nixpkgs { system = systemSettings.system; }).applyPatches {
+        (import inputs.nixpkgs { system = systemSettings.system; }).applyPatches {
           name = "nixpkgs-patched";
-          src = nixpkgs;
+          src = inputs.nixpkgs;
           patches = [ ./patches/emacs-no-version-check.patch ];
         };
 
       # configure pkgs
-      pkgs = import nixpkgs-patched {
+      # use nixpkgs if running a server (homelab or worklab profile)
+      # otherwise use patched nixos-unstable nixpkgs
+      pkgs = (if ((systemSettings.profile == "homelab") || (systemSettings.profile == "worklab"))
+              then
+                pkgs-stable
+              else
+                (import nixpkgs-patched {
+                  system = systemSettings.system;
+                  config = {
+                    allowUnfree = true;
+                    allowUnfreePredicate = (_: true);
+                  };
+                  overlays = [ inputs.rust-overlay.overlays.default ];
+                }));
+
+      pkgs-stable = import inputs.nixpkgs-stable {
         system = systemSettings.system;
         config = {
           allowUnfree = true;
           allowUnfreePredicate = (_: true);
         };
-        overlays = [
-          rust-overlay.overlays.default
-          ytdlp-gui.overlay
-          ];
       };
 
-      pkgs-stable = import nixpkgs-stable {
-        system = systemSettings.system;
-        config = {
-          allowUnfree = true;
-          allowUnfreePredicate = (_: true);
-        };
-      };
-
-      pkgs-r2211 = import nixpkgs-r2211 {
-        system = systemSettings.system;
-          config.allowUnfree = true;
-      };
-
-      pkgs-emacs = import emacs-pin-nixpkgs {
+      pkgs-emacs = import inputs.emacs-pin-nixpkgs {
         system = systemSettings.system;
       };
 
-      pkgs-kdenlive = import kdenlive-pin-nixpkgs {
+      pkgs-kdenlive = import inputs.kdenlive-pin-nixpkgs {
         system = systemSettings.system;
       };
-
-
 
       # configure lib
-      lib = nixpkgs.lib;
+      # use nixpkgs if running a server (homelab or worklab profile)
+      # otherwise use patched nixos-unstable nixpkgs
+      lib = (if ((systemSettings.profile == "homelab") || (systemSettings.profile == "worklab"))
+             then
+               inputs.nixpkgs-stable.lib
+             else
+               inputs.nixpkgs.lib);
+
+      # use home-manager-stable if running a server (homelab or worklab profile)
+      # otherwise use home-manager-unstable
+      home-manager = (if ((systemSettings.profile == "homelab") || (systemSettings.profile == "worklab"))
+             then
+               inputs.home-manager-stable
+             else
+               inputs.home-manager-unstable);
 
       # Systems that can run tests:
       supportedSystems = [ "aarch64-linux" "i686-linux" "x86_64-linux" ];
@@ -112,34 +113,12 @@ snowfall-lib, snowfall-dotbox, snowfall-flake, snowfall-thaw, ...}:
       nixpkgsFor =
         forAllSystems (system: import inputs.nixpkgs { inherit system; });
 
-      modules = [
-         {system = systemSettings.system ; }
-         { environment.systemPackages = [ fh.packages.x86_64-linux.default ]; }
-
-         # ... the rest of your modules here ...
-         #./configuration.nix
-         ./snowflake.nix
-         inputs.snowflake.nixosModules.snowflake
-         inputs.nix-data.nixosModules.nix-data
-         inputs.snowfall-lib.mkFlake {
-            inherit inputs;
-            src = ./.;
-
-            overlays = with inputs; [
-            # To make this flake's packages available in your NixPkgs package set.
-              snowfall-flake.overlay
-              snowfall-thaw.overlay
-              snowfall-dotbox.overlay
-          ]; }
-];
     in {
       homeConfigurations = {
         user = home-manager.lib.homeManagerConfiguration {
           inherit pkgs;
           modules = [
-            (./. + "/profiles" + ("/" + systemSettings.profile)
-              + "/home.nix") # load home.nix from selected PROFILE
-            #  inputs.nix-flatpak.homeManagerModules.nix-flatpak # Declarative flatpaks
+            (./. + "/profiles" + ("/" + systemSettings.profile) + "/home.nix") # load home.nix from selected PROFILE
           ];
           extraSpecialArgs = {
             # pass config variables from above
@@ -148,37 +127,27 @@ snowfall-lib, snowfall-dotbox, snowfall-flake, snowfall-thaw, ...}:
             inherit pkgs-kdenlive;
             inherit systemSettings;
             inherit userSettings;
-            inherit (inputs) nix-doom-emacs;
-            inherit (inputs) org-nursery;
-            inherit (inputs) org-yaap;
-            inherit (inputs) org-side-tree;
-            inherit (inputs) org-timeblock;
-            inherit (inputs) phscroll;
-            #inherit (inputs) nix-flatpak;
-            inherit (inputs) stylix;
-            inherit (inputs) hyprland-plugins;
+            inherit inputs;
           };
         };
       };
       nixosConfigurations = {
-
-        Snowyfrank = lib.nixosSystem {
+        system = lib.nixosSystem {
           system = systemSettings.system;
           modules = [
-            (./. + "/profiles" + ("/" + systemSettings.profile)
-              + "/configuration.nix")
+            (./. + "/profiles" + ("/" + systemSettings.profile) + "/configuration.nix")
+            ./system/bin/phoenix.nix
           ]; # load configuration.nix from selected PROFILE
           specialArgs = {
             # pass config variables from above
             inherit pkgs-stable;
             inherit systemSettings;
             inherit userSettings;
-            inherit (inputs) stylix;
-            inherit (inputs) blocklist-hosts;
+            inherit inputs;
           };
-
         };
-     };
+      };
+
       packages = forAllSystems (system:
         let pkgs = nixpkgsFor.${system};
         in {
@@ -203,58 +172,24 @@ snowfall-lib, snowfall-dotbox, snowfall-flake, snowfall-thaw, ...}:
 
   inputs = {
     nixpkgs.url = "nixpkgs/nixos-unstable";
-    nixpkgs-stable.url = "https://flakehub.com/f/NixOS/nixpkgs/*.tar.gz";
-    nixpkgs-r2211.url = "github:NixOS/nixpkgs/nixos-22.11";
-    nixpkgs-python.url = "https://flakehub.com/f/cachix/nixpkgs-python/1.2.0.tar.gz";
-
-    fh.url = "https://flakehub.com/f/DeterminateSystems/fh/*.tar.gz";
-
-    snowfall-lib.url = "https://flakehub.com/f/snowfallorg/lib/*.tar.gz";
-    snowfall-lib.inputs.nixpks.follows = "nixpks";
-    snowfall-flake.url = "https://flakehub.com/f/snowfallorg/flake/*.tar.gz";
-    snowfall-flake.inputs.nixpkgs.follows = "nixpkgs" ;
-    snowfall-thaw = {
-            url = "https://flakehub.com/f/snowfallorg/thaw/*.tar.gz";
-            inputs.nixpkgs.follows = "nixpkgs";
-        };
-    snowfall-dotbox = {
-            url = "https://flakehub.com/f/snowfallorg/dotbox/*.tar.gz";
-            inputs.nixpkgs.follows = "nixpkgs";
-		};
-    snowflakeos.url = "github:siryoussef/snowflakeos-modules";
-    snowflakeos-module-manager = {
-      url = "github:snowfallorg/snowflakeos-module-manager";
-      inputs.nixpkgs.follows = "nixpkgs";
-      };
-    nix-data.url = "github:snowfallorg/nix-data";
-    nix-software-center.url = "github:vlinkz/nix-software-center";
-    nixos-conf-editor.url = "github:vlinkz/nixos-conf-editor";
-    snow.url = "github:snowflakelinux/snow";
-    nixos-hardware.url = "github:NixOS/nixos-hardware";
-    fleek.url = "https://flakehub.com/f/ublue-os/fleek/0.10.5.tar.gz";
-    blincus.url = "https://flakehub.com/f/ublue-os/blincus/0.3.2.tar.gz";
-
-    disko.url = "https://flakehub.com/f/nix-community/disko/1.3.0.tar.gz";
-    vscode.url = "https://flakehub.com/f/catppuccin/vscode/3.11.1.tar.gz";
-    ytdlp-gui.url = "https://flakehub.com/f/BKSalman/ytdlp-gui/1.0.1.tar.gz";
-    NixVirt.url = "https://flakehub.com/f/AshleyYakeley/NixVirt/0.2.0.tar.gz";
-
-    nix-gui.url = "github:nix-gui/nix-gui";
-    compat.url = "github:balsoft/nixos-fhs-compat";
-    #plasma-manager.url = "github:pjones/plasma-manager";
-    plasma-manager.url = "github:mcdonc/plasma-manager/enable-look-and-feel-settings";
-    plasma-manager.inputs.nixpkgs.follows = "nixpkgs";
-    plasma-manager.inputs.home-manager.follows = "home-manager";
-    scientific-fhs.url = "github:olynch/scientific-fhs";
-
-    emacs-pin-nixpkgs.url = "nixpkgs/f8e2ebd66d097614d51a56a755450d4ae1632df1";
+    nixpkgs-stable.url = "nixpkgs/nixos-23.11";
+    emacs-pin-nixpkgs.url = "nixpkgs/f72123158996b8d4449de481897d855bc47c7bf6";
     kdenlive-pin-nixpkgs.url = "nixpkgs/cfec6d9203a461d9d698d8a60ef003cac6d0da94";
 
-    home-manager.url = "github:nix-community/home-manager/master";
-    home-manager.inputs.nixpkgs.follows = "nixpkgs";
+    home-manager-unstable.url = "github:nix-community/home-manager/master";
+    home-manager-unstable.inputs.nixpkgs.follows = "nixpkgs";
+
+    home-manager-stable.url = "github:nix-community/home-manager/release-23.11";
+    home-manager-stable.inputs.nixpkgs.follows = "nixpkgs-stable";
+
+    hyprland.url = "github:hyprwm/Hyprland/cba1ade848feac44b2eda677503900639581c3f4?submodules=1";
+    hyprland-plugins.url = "github:hyprwm/hyprland-plugins";
+    hyprland-plugins.inputs.hyprland.follows = "hyprland";
+    hycov.url = "github:DreamMaoMao/hycov/115cba558d439cc25d62ce38b7c62cde83f50ef5";
+    hycov.inputs.hyprland.follows = "hyprland";
 
     nix-doom-emacs.url = "github:nix-community/nix-doom-emacs";
-    nix-doom-emacs.inputs.nixpkgs.follows = "nixpkgs";
+    nix-doom-emacs.inputs.nixpkgs.follows = "emacs-pin-nixpkgs";
 
     nix-straight.url = "github:librephoenix/nix-straight.el/pgtk-patch";
     nix-straight.flake = false;
@@ -284,8 +219,24 @@ snowfall-lib, snowfall-dotbox, snowfall-flake, snowfall-thaw, ...}:
       url = "github:ichernyshovvv/org-timeblock";
       flake = false;
     };
+    org-krita = {
+      url = "github:librephoenix/org-krita";
+      flake = false;
+    };
+    org-xournalpp = {
+      url = "gitlab:vherrmann/org-xournalpp";
+      flake = false;
+    };
+    org-sliced-images = {
+      url = "github:jcfk/org-sliced-images";
+      flake = false;
+    };
     phscroll = {
       url = "github:misohena/phscroll";
+      flake = false;
+    };
+    mini-frame = {
+      url = "github:muffinmad/emacs-mini-frame";
       flake = false;
     };
 
@@ -297,10 +248,5 @@ snowfall-lib, snowfall-dotbox, snowfall-flake, snowfall-thaw, ...}:
       url = "github:StevenBlack/hosts";
       flake = false;
     };
-
-    hyprland-plugins = {
-      url = "github:hyprwm/hyprland-plugins";
-      flake = false;
-    };
   };
-  }
+}

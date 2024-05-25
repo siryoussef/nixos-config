@@ -1,4 +1,4 @@
-{ config, lib, pkgs, userSettings, systemSettings, ... }:
+{ inputs, config, lib, pkgs, userSettings, systemSettings, ... }:
 
 {
   imports = [
@@ -23,7 +23,11 @@
 
   wayland.windowManager.hyprland = {
     enable = true;
-    plugins = [ ];
+    package = inputs.hyprland.packages.${pkgs.system}.hyprland;
+    plugins = [
+      inputs.hyprland-plugins.packages.${pkgs.system}.hyprtrails
+      inputs.hycov.packages.${pkgs.system}.hycov
+    ];
     settings = { };
     extraConfig = ''
       exec-once = dbus-update-activation-environment DISPLAY XAUTHORITY WAYLAND_DISPLAY
@@ -41,7 +45,7 @@
       exec-once = waybar
       exec-once = emacs --daemon
 
-      exec-once = swayidle -w timeout 90 '${config.programs.swaylock.package}/bin/swaylock -f' timeout 210 'suspend-unless-render' resume '${pkgs.hyprland}/bin/hyprctl dispatch dpms on' before-sleep "${config.programs.swaylock.package}/bin/swaylock -f"
+      exec-once = hypridle
       exec-once = obs-notification-mute-daemon
 
       exec = ~/.swaybg-stylix
@@ -60,26 +64,34 @@
             gaps_out = 7
        }
 
-       #plugin {
-       #  hyprbars {
-       #    bar_height = 0
-       #    bar_color = 0xee''+ config.lib.stylix.colors.base00 + ''
+       plugin {
+         hyprtrails {
+             color = rgba(''+config.lib.stylix.colors.base08+''55)
+         }
+         hycov {
+             overview_gappo = 60 # gaps width from screen edge
+             overview_gappi = 24 # gaps width from clients
+             enable_hotarea = 0 # enable mouse cursor hotarea, when cursor enter hotarea, it will toggle overview
+             enable_click_action = 1 # enable mouse left button jump and right button kill in overview mode
+             hotarea_monitor = all # monitor name which hotarea is in, default is all
+             hotarea_pos = 1 # position of hotarea (1: bottom left, 2: bottom right, 3: top left, 4: top right)
+             hotarea_size = 10 # hotarea size, 10x10
+             swipe_fingers = 3 # finger number of gesture,move any directory
+             move_focus_distance = 100 # distance for movefocus,only can use 3 finger to move
+             enable_gesture = 1 # enable gesture
+             auto_exit = 1 # enable auto exit when no client in overview
+             auto_fullscreen = 0 # auto make active window maximize after exit overview
+             only_active_workspace = 0 # only overview the active workspace
+             only_active_monitor = 0 # only overview the active monitor
+             enable_alt_release_exit = 0 # alt swith mode arg,see readme for detail
+             alt_replace_key = Super_L # alt swith mode arg,see readme for detail
+             alt_toggle_auto_next = 0 # auto focus next window when toggle overview in alt swith mode
+             click_in_cursor = 1 # when click to jump,the target windwo is find by cursor, not the current foucus window.
+             hight_of_titlebar = 0 # height deviation of title bar height
+             show_special = 0 # show windwos in special workspace in overview.
 
-       #    col.text = 0xff''+ config.lib.stylix.colors.base05 + ''
-
-       #    bar_text_font = '' + userSettings.font + ''
-
-       #    bar_text_size = 12
-
-       #    buttons {
-       #      button_size = 0
-       #      col.maximize = 0xff''+ config.lib.stylix.colors.base0A +''
-
-       #      col.close = 0xff''+ config.lib.stylix.colors.base08 +''
-
-       #    }
-       #  }
-       #}
+         }
+       }
 
        bind=SUPER,SPACE,fullscreen,1
        bind=SUPERSHIFT,F,fullscreen,0
@@ -88,8 +100,16 @@
        bind=ALT,TAB,bringactivetotop
        bind=ALTSHIFT,TAB,cyclenext,prev
        bind=ALTSHIFT,TAB,bringactivetotop
+       bind=SUPER,TAB,hycov:toggleoverview
+       bind=SUPER,left,hycov:movefocus,leftcross
+       bind=SUPER,right,hycov:movefocus,rightcross
+       bind=SUPER,up,hycov:movefocus,upcross
+       bind=SUPER,down,hycov:movefocus,downcross
        bind=SUPER,V,exec,wl-copy $(wl-paste | tr '\n' ' ')
        bind=SUPERSHIFT,T,exec,screenshot-ocr
+       bind=CTRLALT,Delete,exec,hyprctl kill
+       bind=SUPERSHIFT,K,exec,hyprctl kill
+       bind=SUPER,W,exec,nwg-dock-wrapper
 
        bind = SUPER,R,pass,^(com\.obsproject\.Studio)$
        bind = SUPERSHIFT,R,pass,^(com\.obsproject\.Studio)$
@@ -102,7 +122,7 @@
 
        bind=SUPERCTRL,S,exec,container-open # qutebrowser only
 
-       bind=SUPERCTRL,R,exec,killall .waybar-wrapped && waybar & disown
+       bind=SUPERCTRL,R,exec,phoenix refresh
 
        bind=SUPER,code:47,exec,fuzzel
        bind=SUPER,X,exec,fnottctl dismiss
@@ -112,7 +132,7 @@
        bindm=SUPER,mouse:272,movewindow
        bindm=SUPER,mouse:273,resizewindow
        bind=SUPER,T,togglefloating
-       bind=SUPER,G,exec,hyprworkspace 9; pegasus-fe;
+       bind=SUPER,G,exec,hyprctl dispatch focusworkspaceoncurrentmonitor 9; pegasus-fe;
        bind=,code:148,exec,''+ userSettings.term + " "+''-e numbat
 
        bind=,code:107,exec,grim -g "$(slurp)"
@@ -135,8 +155,9 @@
        bind=,code:255,exec,airplane-mode
        bind=SUPER,C,exec,wl-copy $(hyprpicker)
 
-       bind=SUPERSHIFT,S,exec,swaylock --grace 0 & sleep 1 && systemctl suspend
-       bind=SUPERCTRL,L,exec,swaylock --grace 0
+       bind=SUPERSHIFT,S,exec,systemctl suspend
+       bindl=,switch:on:Lid Switch,exec,loginctl lock-session
+       bind=SUPERCTRL,L,exec,loginctl lock-session
 
        bind=SUPER,H,movefocus,l
        bind=SUPER,J,movefocus,d
@@ -148,15 +169,20 @@
        bind=SUPERSHIFT,K,movewindow,u
        bind=SUPERSHIFT,L,movewindow,r
 
-       bind=SUPER,1,exec,hyprworkspace 1
-       bind=SUPER,2,exec,hyprworkspace 2
-       bind=SUPER,3,exec,hyprworkspace 3
-       bind=SUPER,4,exec,hyprworkspace 4
-       bind=SUPER,5,exec,hyprworkspace 5
-       bind=SUPER,6,exec,hyprworkspace 6
-       bind=SUPER,7,exec,hyprworkspace 7
-       bind=SUPER,8,exec,hyprworkspace 8
-       bind=SUPER,9,exec,hyprworkspace 9
+       bind=SUPER,1,focusworkspaceoncurrentmonitor,1
+       bind=SUPER,2,focusworkspaceoncurrentmonitor,2
+       bind=SUPER,3,focusworkspaceoncurrentmonitor,3
+       bind=SUPER,4,focusworkspaceoncurrentmonitor,4
+       bind=SUPER,5,focusworkspaceoncurrentmonitor,5
+       bind=SUPER,6,focusworkspaceoncurrentmonitor,6
+       bind=SUPER,7,focusworkspaceoncurrentmonitor,7
+       bind=SUPER,8,focusworkspaceoncurrentmonitor,8
+       bind=SUPER,9,focusworkspaceoncurrentmonitor,9
+
+       bind=SUPERCTRL,right,exec,hyprnome
+       bind=SUPERCTRL,left,exec,hyprnome --previous
+       bind=SUPERSHIFT,right,exec,hyprnome --move
+       bind=SUPERSHIFT,left,exec,hyprnome --previous --move
 
        bind=SUPERSHIFT,1,movetoworkspace,1
        bind=SUPERSHIFT,2,movetoworkspace,2
@@ -170,9 +196,10 @@
 
        bind=SUPER,Z,exec,pypr toggle term && hyprctl dispatch bringactivetotop
        bind=SUPER,F,exec,pypr toggle ranger && hyprctl dispatch bringactivetotop
-       bind=SUPER,N,exec,pypr toggle musikcube && hyprctl dispatch bringactivetotop
+       bind=SUPER,N,exec,pypr toggle numbat && hyprctl dispatch bringactivetotop
+       bind=SUPER,M,exec,pypr toggle musikcube && hyprctl dispatch bringactivetotop
        bind=SUPER,B,exec,pypr toggle btm && hyprctl dispatch bringactivetotop
-       bind=SUPER,E,exec,pypr toggle geary && hyprctl dispatch bringactivetotop
+       bind=SUPER,D,exec,hypr-element
        bind=SUPER,code:172,exec,pypr toggle pavucontrol && hyprctl dispatch bringactivetotop
        $scratchpadsize = size 80% 85%
 
@@ -182,11 +209,14 @@
        windowrulev2 = workspace special silent,$scratchpad
        windowrulev2 = center,$scratchpad
 
-       $gearyscratchpad = class:^(geary)$
-       windowrulev2 = float,$gearyscratchpad
-       windowrulev2 = $scratchpadsize,$gearyscratchpad
-       windowrulev2 = workspace special silent,$gearyscratchpad
-       windowrulev2 = center,$gearyscratchpad
+       windowrulev2 = float,class:^(Element)$
+       windowrulev2 = size 85% 90%,class:^(Element)$
+       windowrulev2 = center,class:^(Element)$
+
+       $savetodisk = title:^(Save to Disk)$
+       windowrulev2 = float,$savetodisk
+       windowrulev2 = size 70% 75%,$savetodisk
+       windowrulev2 = center,$savetodisk
 
        $pavucontrol = class:^(pavucontrol)$
        windowrulev2 = float,$pavucontrol
@@ -195,13 +225,20 @@
        windowrulev2 = workspace special silent,$pavucontrol
        windowrulev2 = opacity 0.80,$pavucontrol
 
-       windowrulev2 = float,title:^(Kdenlive)$
+       $miniframe = title:\*Minibuf.*
+       windowrulev2 = float,$miniframe
+       windowrulev2 = size 64% 50%,$miniframe
+       windowrulev2 = move 18% 25%,$miniframe
+       windowrulev2 = animation popin 1 20,$miniframe
 
        windowrulev2 = float,class:^(pokefinder)$
 
-       windowrulev2 = opacity 0.85,$gearyscratchpad
        windowrulev2 = opacity 0.80,title:ORUI
-       windowrulev2 = opacity 0.80,title:Heimdall
+
+       windowrulev2 = opacity 1.0,class:^(org.qutebrowser.qutebrowser),fullscreen:1
+       windowrulev2 = opacity 0.90,class:^(Element)$
+       windowrulev2 = opacity 1.0,class:^(Brave-browser),fullscreen:1
+       windowrulev2 = opacity 1.0,class:^(librewolf),fullscreen:1
        windowrulev2 = opacity 0.80,title:^(LibreWolf)$
        windowrulev2 = opacity 0.80,title:^(New Tab - LibreWolf)$
        windowrulev2 = opacity 0.80,title:^(New Tab - Brave)$
@@ -209,21 +246,26 @@
        windowrulev2 = opacity 0.75,title:\[.*\] - My Local Dashboard Awesome Homepage
        windowrulev2 = opacity 0.9,class:^(org.keepassxc.KeePassXC)$
        windowrulev2 = opacity 0.75,class:^(org.gnome.Nautilus)$
+       windowrulev2 = opacity 0.75,class:^(org.gnome.Nautilus)$
 
        layerrule = blur,waybar
+       layerrule = xray,waybar
+       blurls = waybar
+       layerrule = blur,launcher # fuzzel
+       blurls = launcher # fuzzel
+       layerrule = blur,gtk-layer-shell
+       layerrule = xray,gtk-layer-shell
+       blurls = gtk-layer-shell
 
        bind=SUPER,code:21,exec,pypr zoom
        bind=SUPER,code:21,exec,hyprctl reload
-
-       bind=SUPERCTRL,right,workspace,+1
-       bind=SUPERCTRL,left,workspace,-1
 
        bind=SUPER,I,exec,networkmanager_dmenu
        bind=SUPER,P,exec,keepmenu
        bind=SUPERSHIFT,P,exec,hyprprofile-dmenu
 
        # 3 monitor setup
-       monitor=eDP-1,1920x1080,1000x1080,1
+       monitor=eDP-1,1920x1080,900x1080,1
        monitor=HDMI-A-1,1920x1080,1920x0,1
        monitor=DP-1,1920x1080,0x0,1
 
@@ -239,8 +281,12 @@
          force_zero_scaling = true
        }
 
-       env = WLR_DRM_DEVICES,/dev/dri/card1:/dev/dri/card0
+       env = WLR_DRM_DEVICES,/dev/dri/card2:/dev/dri/card1
        env = QT_QPA_PLATFORMTHEME,qt5ct
+
+       binds {
+         movefocus_cycles_fullscreen = false
+       }
 
        input {
          kb_layout = us
@@ -264,6 +310,7 @@
            ignore_opacity = true
            contrast = 1.17
            brightness = 0.8
+           xray = true
          }
        }
 
@@ -278,8 +325,40 @@
     feh
     killall
     polkit_gnome
+    (nwg-dock-hyprland.overrideAttrs (oldAttrs: {
+      patches = ./patches/noactiveclients.patch;
+    }))
     libva-utils
     gsettings-desktop-schemas
+    (pyprland.overrideAttrs (oldAttrs: {
+      src = fetchFromGitHub {
+        owner = "hyprland-community";
+        repo = "pyprland";
+        rev = "refs/tags/2.2.17";
+        hash = "sha256-S1bIIazrBWyjF8tOcIk0AwwWq9gbpTKNsjr9iYA5lKk=";
+      };
+    }))
+    (hyprnome.override (oldAttrs: {
+        rustPlatform = oldAttrs.rustPlatform // {
+          buildRustPackage = args: oldAttrs.rustPlatform.buildRustPackage (args // {
+            pname = "hyprnome";
+            version = "unstable-2024-05-06";
+            src = fetchFromGitHub {
+              owner = "donovanglover";
+              repo = "hyprnome";
+              rev = "f185e6dbd7cfcb3ecc11471fab7d2be374bd5b28";
+              hash = "sha256-tmko/bnGdYOMTIGljJ6T8d76NPLkHAfae6P6G2Aa2Qo=";
+            };
+            cargoDeps = oldAttrs.cargoDeps.overrideAttrs (oldAttrs: rec {
+              name = "${pname}-vendor.tar.gz";
+              inherit src;
+              outputHash = "sha256-cQwAGNKTfJTnXDI3IMJQ2583NEIZE7GScW7TsgnKrKs=";
+            });
+            cargoHash = "sha256-cQwAGNKTfJTnXDI3IMJQ2583NEIZE7GScW7TsgnKrKs=";
+          });
+        };
+     })
+    )
     gnome.zenity
     wlr-randr
     wtype
@@ -287,7 +366,8 @@
     wl-clipboard
     hyprland-protocols
     hyprpicker
-    swayidle
+    hypridle
+    hyprlock
     swaybg
     fnott
     fuzzel
@@ -315,6 +395,24 @@
       tesseract $imgname $txtname;
       wl-copy -n < $txtfname
     '')
+    (pkgs.writeScriptBin "nwg-dock-wrapper" ''
+      #!/bin/sh
+      if pgrep -x ".nwg-dock-hyprl" > /dev/null
+      then
+        nwg-dock-hyprland
+      else
+        nwg-dock-hyprland -f -x -i 64 -nolauncher -a start -ml 8 -mr 8 -mb 8
+      fi
+    '')
+    (pkgs.writeScriptBin "hypr-element" ''
+      #!/bin/sh
+      if hyprctl clients | grep "class: Element" > /dev/null
+      then
+        hyprctl dispatch closewindow Element
+      else
+        element-desktop
+      fi
+    '')
     (pkgs.writeScriptBin "sct" ''
       #!/bin/sh
       killall wlsunset &> /dev/null;
@@ -332,10 +430,8 @@
         if pgrep -x .obs-wrapped > /dev/null;
           then
             pkill -STOP fnott;
-            #emacsclient --eval "(org-yaap-mode 0)";
           else
             pkill -CONT fnott;
-            #emacsclient --eval "(if (not org-yaap-mode) (org-yaap-mode 1))";
         fi
         sleep 10;
       done
@@ -345,83 +441,201 @@
       if pgrep -x nixos-rebuild > /dev/null || pgrep -x home-manager > /dev/null || pgrep -x kdenlive > /dev/null || pgrep -x FL64.exe > /dev/null || pgrep -x blender > /dev/null || pgrep -x flatpak > /dev/null;
       then echo "Shouldn't suspend"; sleep 10; else echo "Should suspend"; systemctl suspend; fi
     '')
-    (pkgs.writeScriptBin "hyprworkspace" ''
-      #!/bin/sh
-      # from https://github.com/taylor85345/hyprland-dotfiles/blob/master/hypr/scripts/workspace
-      monitors=/tmp/hypr/monitors_temp
-      hyprctl monitors > $monitors
-
-      if [[ -z $1 ]]; then
-        workspace=$(grep -B 5 "focused: no" "$monitors" | awk 'NR==1 {print $3}')
-      else
-        workspace=$1
-      fi
-
-      activemonitor=$(grep -B 11 "focused: yes" "$monitors" | awk 'NR==1 {print $2}')
-      passivemonitor=$(grep  -B 6 "($workspace)" "$monitors" | awk 'NR==1 {print $2}')
-      #activews=$(grep -A 2 "$activemonitor" "$monitors" | awk 'NR==3 {print $1}' RS='(' FS=')')
-      passivews=$(grep -A 6 "Monitor $passivemonitor" "$monitors" | awk 'NR==3 {print $1}' RS='(' FS=')')
-
-      if [[ $workspace -eq $passivews ]] && [[ $activemonitor != "$passivemonitor" ]]; then
-       hyprctl dispatch workspace "$workspace" && hyprctl dispatch swapactiveworkspaces "$activemonitor" "$passivemonitor" && hyprctl dispatch workspace "$workspace"
-        echo $activemonitor $passivemonitor
-      else
-        hyprctl dispatch moveworkspacetomonitor "$workspace $activemonitor" && hyprctl dispatch workspace "$workspace"
-      fi
-
-      exit 0
-
-    '')
-    (pkgs.python3Packages.buildPythonPackage rec {
-      pname = "pyprland";
-      version = "1.4.1";
-      src = pkgs.fetchPypi {
-        inherit pname version;
-        sha256 = "sha256-JRxUn4uibkl9tyOe68YuHuJKwtJS//Pmi16el5gL9n8=";
-      };
-      format = "pyproject";
-      propagatedBuildInputs = with pkgs; [
-        python3Packages.setuptools
-        python3Packages.poetry-core
-        poetry
-      ];
-      doCheck = false;
+    (pkgs.makeDesktopItem {
+      name = "emacsclientnewframe";
+      desktopName = "Emacs Client New Frame";
+      exec = "emacsclient -c -a emacs";
+      terminal = false;
+      icon = "emacs";
+      type = "Application";
     })
   ];
-  home.file.".config/hypr/pyprland.json".text = ''
-    {
-      "pyprland": {
-        "plugins": ["scratchpads", "magnify"]
-      },
-      "scratchpads": {
-        "term": {
-          "command": "alacritty --class scratchpad",
-          "margin": 50
-        },
-        "ranger": {
-          "command": "kitty --class scratchpad -e ranger",
-          "margin": 50
-        },
-        "musikcube": {
-          "command": "alacritty --class scratchpad -e musikcube",
-          "margin": 50
-        },
-        "btm": {
-          "command": "alacritty --class scratchpad -e btm",
-          "margin": 50
-        },
-        "geary": {
-          "command": "geary",
-          "margin": 50
-        },
-        "pavucontrol": {
-          "command": "pavucontrol",
-          "margin": 50,
-          "unfocus": "hide",
-          "animation": "fromTop"
-        }
-      }
+  home.file.".config/nwg-dock-hyprland/style.css".text = ''
+    window {
+      background: rgba(''+config.lib.stylix.colors.base00-rgb-r+'',''+config.lib.stylix.colors.base00-rgb-g+'',''+config.lib.stylix.colors.base00-rgb-b+'',0.0);
+      border-radius: 20px;
+      padding: 4px;
+      margin-left: 4px;
+      margin-right: 4px;
+      border-style: none;
     }
+
+    #box {
+      /* Define attributes of the box surrounding icons here */
+      padding: 10px;
+      background: rgba(''+config.lib.stylix.colors.base00-rgb-r+'',''+config.lib.stylix.colors.base00-rgb-g+'',''+config.lib.stylix.colors.base00-rgb-b+'',0.55);
+      border-radius: 20px;
+      padding: 4px;
+      margin-left: 4px;
+      margin-right: 4px;
+      border-style: none;
+    }
+    button {
+      border-radius: 10px;
+      padding: 4px;
+      margin-left: 4px;
+      margin-right: 4px;
+      background: rgba(''+config.lib.stylix.colors.base03-rgb-r+'',''+config.lib.stylix.colors.base03-rgb-g+'',''+config.lib.stylix.colors.base03-rgb-b+'',0.55);
+      color: #''+config.lib.stylix.colors.base07+'';
+      font-size: 12px
+    }
+
+    button:hover {
+      background: rgba(''+config.lib.stylix.colors.base04-rgb-r+'',''+config.lib.stylix.colors.base04-rgb-g+'',''+config.lib.stylix.colors.base04-rgb-b+'',0.55);
+    }
+
+  '';
+  home.file.".config/nwg-dock-pinned".text = ''
+    Alacritty
+    emacsclientnewframe
+    qutebrowser
+    brave-browser
+    librewolf
+    writer
+    impress
+    calc
+    draw
+    krita
+    pinta
+    xournalpp
+    obs
+    kdenlive
+    blender
+    openscad
+    Cura
+    virt-manager
+  '';
+  home.file.".config/hypr/hypridle.conf".text = ''
+    general {
+      lock_cmd = pgrep hyprlock || hyprlock
+      before_sleep_cmd = loginctl lock-session
+      ignore_dbus_inhibit = false
+    }
+
+    listener {
+      timeout = 300 # in seconds
+      on-timeout = loginctl lock-session
+    }
+    listener {
+      timeout = 600 # in seconds
+      on-timeout = systemctl suspend
+    }
+  '';
+  home.file.".config/hypr/hyprlock.conf".text = ''
+    background {
+      monitor =
+      path = screenshot
+
+      # all these options are taken from hyprland, see https://wiki.hyprland.org/Configuring/Variables/#blur for explanations
+      blur_passes = 4
+      blur_size = 5
+      noise = 0.0117
+      contrast = 0.8916
+      brightness = 0.8172
+      vibrancy = 0.1696
+      vibrancy_darkness = 0.0
+    }
+
+    # doesn't work yet
+    image {
+      monitor =
+      path = /home/emmet/.dotfiles/user/wm/hyprland/nix-dark.png
+      size = 150 # lesser side if not 1:1 ratio
+      rounding = -1 # negative values mean circle
+      border_size = 0
+      rotate = 0 # degrees, counter-clockwise
+
+      position = 0, 200
+      halign = center
+      valign = center
+    }
+
+    input-field {
+      monitor =
+      size = 200, 50
+      outline_thickness = 3
+      dots_size = 0.33 # Scale of input-field height, 0.2 - 0.8
+      dots_spacing = 0.15 # Scale of dots' absolute size, 0.0 - 1.0
+      dots_center = false
+      dots_rounding = -1 # -1 default circle, -2 follow input-field rounding
+      outer_color = rgb(''+config.lib.stylix.colors.base07-rgb-r+'',''+config.lib.stylix.colors.base07-rgb-g+'', ''+config.lib.stylix.colors.base07-rgb-b+'')
+      inner_color = rgb(''+config.lib.stylix.colors.base00-rgb-r+'',''+config.lib.stylix.colors.base00-rgb-g+'', ''+config.lib.stylix.colors.base00-rgb-b+'')
+      font_color = rgb(''+config.lib.stylix.colors.base07-rgb-r+'',''+config.lib.stylix.colors.base07-rgb-g+'', ''+config.lib.stylix.colors.base07-rgb-b+'')
+      fade_on_empty = true
+      fade_timeout = 1000 # Milliseconds before fade_on_empty is triggered.
+      placeholder_text = <i>Input Password...</i> # Text rendered in the input box when it's empty.
+      hide_input = false
+      rounding = -1 # -1 means complete rounding (circle/oval)
+      check_color = rgb(''+config.lib.stylix.colors.base0A-rgb-r+'',''+config.lib.stylix.colors.base0A-rgb-g+'', ''+config.lib.stylix.colors.base0A-rgb-b+'')
+      fail_color = rgb(''+config.lib.stylix.colors.base08-rgb-r+'',''+config.lib.stylix.colors.base08-rgb-g+'', ''+config.lib.stylix.colors.base08-rgb-b+'')
+      fail_text = <i>$FAIL <b>($ATTEMPTS)</b></i> # can be set to empty
+      fail_transition = 300 # transition time in ms between normal outer_color and fail_color
+      capslock_color = -1
+      numlock_color = -1
+      bothlock_color = -1 # when both locks are active. -1 means don't change outer color (same for above)
+      invert_numlock = false # change color if numlock is off
+      swap_font_color = false # see below
+
+      position = 0, -20
+      halign = center
+      valign = center
+    }
+
+    label {
+      monitor =
+      text = Hello, Emmet
+      color = rgb(''+config.lib.stylix.colors.base07-rgb-r+'',''+config.lib.stylix.colors.base07-rgb-g+'', ''+config.lib.stylix.colors.base07-rgb-b+'')
+      font_size = 25
+      font_family = ''+userSettings.font+''
+      rotate = 0 # degrees, counter-clockwise
+
+      position = 0, 160
+      halign = center
+      valign = center
+    }
+
+    label {
+      monitor =
+      text = $TIME
+      color = rgb(''+config.lib.stylix.colors.base07-rgb-r+'',''+config.lib.stylix.colors.base07-rgb-g+'', ''+config.lib.stylix.colors.base07-rgb-b+'')
+      font_size = 20
+      font_family = Intel One Mono
+      rotate = 0 # degrees, counter-clockwise
+
+      position = 0, 80
+      halign = center
+      valign = center
+    }
+  '';
+  home.file.".config/hypr/pyprland.toml".text = ''
+    [pyprland]
+    plugins = ["scratchpads", "magnify"]
+
+    [scratchpads.term]
+    command = "alacritty --class scratchpad"
+    margin = 50
+
+    [scratchpads.ranger]
+    command = "kitty --class scratchpad -e ranger"
+    margin = 50
+
+    [scratchpads.numbat]
+    command = "alacritty --class scratchpad -e numbat"
+    margin = 50
+
+    [scratchpads.musikcube]
+    command = "alacritty --class scratchpad -e musikcube"
+    margin = 50
+
+    [scratchpads.btm]
+    command = "alacritty --class scratchpad -e btm"
+    margin = 50
+
+    [scratchpads.pavucontrol]
+    command = "pavucontrol"
+    margin = 50
+    unfocus = "hide"
+    animation = "fromTop"
   '';
 
   programs.waybar = {
@@ -429,8 +643,8 @@
     package = pkgs.waybar.overrideAttrs (oldAttrs: {
       postPatch = ''
         # use hyprctl to switch workspaces
-        sed -i 's/zext_workspace_handle_v1_activate(workspace_handle_);/const std::string command = "hyprworkspace " + name_;\n\tsystem(command.c_str());/g' src/modules/wlr/workspace_manager.cpp
-        sed -i 's/gIPC->getSocket1Reply("dispatch workspace " + std::to_string(id()));/const std::string command = "hyprworkspace " + std::to_string(id());\n\tsystem(command.c_str());/g' src/modules/hyprland/workspaces.cpp
+        sed -i 's/zext_workspace_handle_v1_activate(workspace_handle_);/const std::string command = "hyprctl dispatch focusworkspaceoncurrentmonitor " + std::to_string(id());\n\tsystem(command.c_str());/g' src/modules/wlr/workspace_manager.cpp
+        sed -i 's/gIPC->getSocket1Reply("dispatch workspace " + std::to_string(id()));/gIPC->getSocket1Reply("dispatch focusworkspaceoncurrentmonitor " + std::to_string(id()));/g' src/modules/hyprland/workspaces.cpp
       '';
     });
     settings = {
@@ -480,7 +694,6 @@
             "scratch_ranger" = "_󰴉";
             "scratch_musikcube" = "_";
             "scratch_btm" = "_";
-            "scratch_geary" = "_";
             "scratch_pavucontrol" = "_󰍰";
           };
           "on-click" = "activate";
@@ -577,8 +790,7 @@
       }
 
       window#waybar {
-          background-color: #'' + config.lib.stylix.colors.base00 + '';
-          opacity: 0.75;
+          background-color: rgba('' + config.lib.stylix.colors.base00-rgb-r + "," + config.lib.stylix.colors.base00-rgb-g + "," + config.lib.stylix.colors.base00-rgb-b + "," + ''0.55);
           border-radius: 8px;
           color: #'' + config.lib.stylix.colors.base07 + '';
           transition-property: background-color;
@@ -761,37 +973,6 @@
 
   services.udiskie.enable = true;
   services.udiskie.tray = "always";
-  programs.swaylock = {
-    enable = true;
-    package = pkgs.swaylock-effects;
-    settings = {
-      color = "#"+config.lib.stylix.colors.base00;
-      inside-color = "#"+config.lib.stylix.colors.base00+"cc";
-      inside-caps-lock-color = "#"+config.lib.stylix.colors.base09;
-      inside-clear-color = "#"+config.lib.stylix.colors.base0A;
-      inside-wrong-color = "#"+config.lib.stylix.colors.base08;
-      inside-ver-color = "#"+config.lib.stylix.colors.base0D;
-      line-color = "#"+config.lib.stylix.colors.base00;
-      line-caps-lock-color = "#"+config.lib.stylix.colors.base00;
-      line-clear-color = "#"+config.lib.stylix.colors.base00;
-      line-wrong-color = "#"+config.lib.stylix.colors.base00;
-      line-ver-color = "#"+config.lib.stylix.colors.base00;
-      ring-color = "#"+config.lib.stylix.colors.base00;
-      ring-caps-lock-color = "#"+config.lib.stylix.colors.base09;
-      ring-clear-color = "#"+config.lib.stylix.colors.base0A;
-      ring-wrong-color = "#"+config.lib.stylix.colors.base08;
-      ring-ver-color = "#"+config.lib.stylix.colors.base0D;
-      text-color = "#"+config.lib.stylix.colors.base00;
-      key-hl-color = "#"+config.lib.stylix.colors.base0B;
-      font = config.stylix.fonts.monospace.name;
-      font-size = 20;
-      fade-in = 0.5;
-      grace = 5;
-      indicator-radius = 100;
-      screenshots = true;
-      effect-blur = "10x10";
-    };
-  };
   programs.fuzzel.enable = true;
   programs.fuzzel.settings = {
     main = {
@@ -799,7 +980,7 @@
       terminal = "${pkgs.alacritty}/bin/alacritty";
     };
     colors = {
-      background = config.lib.stylix.colors.base00 + "e6";
+      background = config.lib.stylix.colors.base00 + "bf";
       text = config.lib.stylix.colors.base07 + "ff";
       match = config.lib.stylix.colors.base05 + "ff";
       selection = config.lib.stylix.colors.base08 + "ff";

@@ -1,4 +1,4 @@
-{ config, pkgs, pkgs-kdenlive, nix-doom-emacs, stylix, userSettings, ... }:
+{ config, pkgs, pkgs-kdenlive, userSettings, ... }:
 
 {
   # Home Manager needs a bit of information about you and the paths it should
@@ -9,12 +9,9 @@
   programs.home-manager.enable = true;
 
   imports = [
-              (if ((userSettings.editor == "emacs") || (userSettings.editor == "emacsclient")) then nix-doom-emacs.hmModule else null)
-              stylix.homeManagerModules.stylix
               (./. + "../../../user/wm"+("/"+userSettings.wm+"/"+userSettings.wm)+".nix") # My window manager selected from flake
               ../../user/shell/sh.nix # My zsh and bash config
               ../../user/shell/cli-collection.nix # Useful CLI apps
-              ../../user/bin/phoenix.nix # My nix command wrapper
               ../../user/app/doom-emacs/doom.nix # My doom emacs config
               ../../user/app/ranger/ranger.nix # My ranger file manager config
               ../../user/app/git/git.nix # My git config
@@ -35,7 +32,7 @@
     # Core
     zsh
     alacritty
-    floorp
+    librewolf
     brave
     qutebrowser
     dmenu
@@ -48,8 +45,11 @@
     mate.atril
     openboard
     xournalpp
+    gnome.adwaita-icon-theme
+    shared-mime-info
     glib
     newsflash
+    foliate
     gnome.nautilus
     gnome.gnome-calendar
     gnome.seahorse
@@ -58,12 +58,12 @@
     protonmail-bridge
     texliveSmall
     numbat
+    element-desktop-wayland
 
     wine
     bottles
     # The following requires 64-bit FL Studio (FL64) to be installed to a bottle
     # With a bottle name of "FL Studio"
-    /*
     (pkgs.writeShellScriptBin "flstudio" ''
        #!/bin/sh
        if [ -z "$1" ]
@@ -85,7 +85,7 @@
       type = "Application";
       mimeTypes = ["application/octet-stream"];
     })
-  */
+
     # Media
     gimp
     pinta
@@ -95,10 +95,10 @@
     vlc
     mpv
     yt-dlp
-    blender
-    /*
+    blender-hip
     cura
     curaengine_stable
+    openscad
     (stdenv.mkDerivation {
       name = "cura-slicer";
       version = "0.0.7";
@@ -121,7 +121,6 @@
         curaengine_stable
       ];
     })
-    */
     obs-studio
     ffmpeg
     (pkgs.writeScriptBin "kdenlive-accel" ''
@@ -131,23 +130,23 @@
     movit
     mediainfo
     libmediainfo
-    mediainfo-gui
     audio-recorder
     gnome.cheese
     ardour
+    rosegarden
     tenacity
 
     # Various dev packages
     texinfo
     libffi zlib
     nodePackages.ungit
+    ventoy
   ]) ++ ([ pkgs-kdenlive.kdenlive ]);
 
   services.syncthing.enable = true;
 
-xdg = {
-  enable = true;
-  userDirs = {
+  xdg.enable = true;
+  xdg.userDirs = {
     enable = true;
     createDirectories = true;
     music = "${config.home.homeDirectory}/Media/Music";
@@ -167,9 +166,12 @@ xdg = {
       XDG_BOOK_DIR = "${config.home.homeDirectory}/Media/Books";
     };
   };
-   mime.enable = true;
-          mimeApps = { enable = true; /* associations.added = { "application/octet-stream" = "flstudio.desktop;";};*/ };
-          };
+  xdg.mime.enable = true;
+  xdg.mimeApps.enable = true;
+  xdg.mimeApps.associations.added = {
+    # TODO fix mime associations, most of them are totally broken :(
+    "application/octet-stream" = "flstudio.desktop;";
+  };
 
   home.sessionVariables = {
     EDITOR = userSettings.editor;
@@ -177,5 +179,7 @@ xdg = {
     TERM = userSettings.term;
     BROWSER = userSettings.browser;
   };
+
+  news.display = "silent";
 
 }

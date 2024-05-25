@@ -190,6 +190,23 @@
 ;; For camelCase
 (global-subword-mode 1)
 
+;; Mini-frames ;; cool but kinda suboptimal atm
+;(add-load-path! "~/.emacs.d/mini-frame")
+;(require 'mini-frame)
+;(setq mini-frame-ignore-commands '(evil-ex-search-forward helpful-variable helpful-callable))
+;(setq mini-frame-show-parameters
+;    '((left . 216)
+;     (top . 240)
+;     (width . 0.78)
+;     (height . 20)
+;     (alpha-background . 90))
+;)
+;(setq mini-frame-detach-on-hide nil)
+;(setq mini-frame-resize t)
+;(setq resize-mini-frames t)
+;(setq mini-frame-standalone nil)
+;(mini-frame-mode 1)
+
 ;;;------ Registers ------;;;
 
 (map! :leader
@@ -255,7 +272,7 @@
   org-pretty-entities t
   org-ellipsis "…")
 
-(setq-default line-spacing 0.15)
+(setq-default line-spacing 0)
 
 ; Automatic table of contents is nice
 (if (require 'toc-org nil t)
@@ -408,10 +425,51 @@ same directory as the org-buffer and insert a link to this file."
                     '(file))
            (list (openwith-make-extension-regexp
                   '("flp"))
-                    "~/.local/bin/flstudio"
+                    "flstudio"
+                    '(file))
+           (list (openwith-make-extension-regexp
+                  '("mid"))
+                    "rosegarden"
                     '(file))
                ))
      (openwith-mode 1)))
+
+(add-load-path! "~/.emacs.d/org-krita")
+(require 'org-krita)
+(add-hook 'org-mode-hook 'org-krita-mode)
+(setq org-krita-extract-filename "preview.png")
+(setq org-krita-scale 1)
+
+(add-load-path! "~/.emacs.d/org-xournalpp")
+(require 'org-xournalpp)
+(add-hook 'org-mode-hook 'org-xournalpp-mode)
+(setq org-xournalpp-template-getter
+  '(closure
+    (t)
+    nil
+    (file-truename "~/Templates/template.xopp") ; use my own template
+  )
+)
+
+;; override width to static 250 for now
+;; so I don't have massive images in org mode (scrolling not fun)
+(defun org-xournalpp--create-image (link refresh)
+  "Extract svg/png from given LINK and return image.
+
+Regenerate the cached inline image, if REFRESH is true.
+
+If the path from LINK does not exist, nil is returned."
+  (let ((width 250)
+        (xopp-path (f-expand (org-element-property :path link))))
+    (when (f-exists? xopp-path)
+        (if width
+            (create-image (org-xournalpp--get-image xopp-path refresh)
+                          org-xournalpp-image-type
+                          nil
+                          :width width)
+          (create-image (org-xournalpp--get-image xopp-path refresh)
+                        org-xournalpp-image-type
+                        nil)))))
 
 (defun org-copy-link-to-clipboard-at-point ()
   "Copy current link at point into clipboard (useful for images and links)"
@@ -526,6 +584,8 @@ same directory as the org-buffer and insert a link to this file."
    :prefix "n"
    :desc "Org Transclusion Mode" "t" #'org-transclusion-mode))
 (map! :leader :prefix "n" "l" #'org-transclusion-live-sync-start)
+
+(setq org-transclusion-exclude-elements '(property-drawer keyword))
 
 (add-hook 'org-mode-hook #'org-transclusion-mode)
 
@@ -777,13 +837,20 @@ same directory as the org-buffer and insert a link to this file."
   (setq org-agenda-files (append org-agenda-files (org-roam-list-notes-by-tag "todos")))
 )
 
+(defun org-roam-append-ids-to-org-id-files (db)
+  (org-roam-switch-db db t)
+  (setq org-id-files (append org-id-files (org-roam-list-files)))
+)
+
 ;; Refreshing org roam agenda
 (defun org-roam-refresh-agenda-list ()
   (interactive)
   (setq prev-org-roam-db-choice org-roam-db-choice)
   (setq org-agenda-files '())
+  (setq org-id-files '())
   (dolist (DB full-org-roam-db-list-pretty)
     (org-roam-append-notes-to-agenda "todos" DB)
+    (org-roam-append-ids-to-org-id-files DB)
   )
   (setq org-agenda-files (-uniq org-agenda-files))
   (org-roam-switch-db prev-org-roam-db-choice 1)
@@ -919,6 +986,7 @@ same directory as the org-buffer and insert a link to this file."
       org-agenda-skip-scheduled-if-deadline-is-shown t
       org-agenda-skip-timestamp-if-deadline-is-shown t)
 
+
 ;; Custom styles for dates in agenda
 (custom-set-faces!
   '(org-agenda-date :inherit outline-1 :height 1.15)
@@ -926,6 +994,8 @@ same directory as the org-buffer and insert a link to this file."
   '(org-agenda-date-weekend :ineherit outline-2 :height  1.15)
   '(org-agenda-date-weekend-today :inherit outline-4 :height 1.15)
   '(org-super-agenda-header :inherit custom-button :weight bold :height 1.05)
+  `(link :foreground unspecified :underline nil :background ,(nth 1 (nth 7 doom-themes--colors)))
+  '(org-link :foreground unspecified)
   )
 
 ;; Toggle completed entries function
@@ -964,6 +1034,9 @@ same directory as the org-buffer and insert a link to this file."
         ("Knowledge.p" ,(list (all-the-icons-faicon "database" :height 0.8)) nil nil :ascent center)
         ("Personal.p" ,(list (all-the-icons-material "person" :height 0.9)) nil nil :ascent center)
 ))
+
+(defalias 'org-timestamp-down 'org-timestamp-down-day)
+(defalias 'org-timestamp-up 'org-timestamp-up-day)
 
 (defun org-categorize-by-roam-db-on-save ()
   (interactive)
@@ -1147,6 +1220,7 @@ https://github.com/magit/magit/issues/460 (@cpitclaudel)."
             :filter-return #'~/magit-process-environment)
 
 (require 'magit-todos)
+(setq magit-todos-keywords-list '("TODO" "FIXME" "HACK" "REVIEW" "DEPRECATED" "BUG"))
 (magit-todos-mode 1)
 
 (evil-set-initial-state 'ibuffer-mode 'motion)
@@ -1165,7 +1239,11 @@ https://github.com/magit/magit/issues/460 (@cpitclaudel)."
       "C-=" 'text-scale-increase
 
       :desc "Decrease font size"
-      "C--" 'text-scale-decrease)
+      "C--" 'text-scale-decrease
+
+      :desc "Jump to dired"
+      "M-f" 'dired-jump
+)
 
 ;;;------ ranger configuration ------;;;
 
@@ -1175,9 +1253,7 @@ https://github.com/magit/magit/issues/460 (@cpitclaudel)."
 
       :desc "Toggle mark on current file"
       "x" 'ranger-toggle-mark
-
-      :desc "Open ranger"
-      "o d" 'ranger)
+)
 
 ;;;-- hledger-mode configuration ;;;--
 
@@ -1246,7 +1322,7 @@ https://github.com/magit/magit/issues/460 (@cpitclaudel)."
   "q" 'helpful-kill-buffers)
 
 ;;;------ helpful configuration ------;;;
-(add-load-path! "~/.nix-profile/share/emacs/site-lisp/elpa/mu4e-1.10.8")
+(add-load-path! "~/.nix-profile/share/emacs/site-lisp/elpa/mu4e-1.12.2")
 (require 'mu4e)
 (require 'mu4e-contrib)
 (require 'mu4e-actions)
@@ -1366,6 +1442,7 @@ https://github.com/magit/magit/issues/460 (@cpitclaudel)."
 (map! :leader
       :desc "Projectile grep"
       "/" #'projectile-grep)
+(after! projectile (put 'projectile-grep 'disabled nil))
 
 ;;;-- projectile wrapper commands ;;;--
 (require 'sudo-edit)
